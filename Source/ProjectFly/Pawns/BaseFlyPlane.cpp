@@ -9,7 +9,7 @@
 ABaseFlyPlane::ABaseFlyPlane()
 {
     // Set this pawn to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-    PrimaryActorTick.bCanEverTick = false;
+    PrimaryActorTick.bCanEverTick = true;
 
     // Create a static mesh
     StaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
@@ -19,7 +19,7 @@ ABaseFlyPlane::ABaseFlyPlane()
     CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
     CameraBoom->SetupAttachment(RootComponent);
     CameraBoom->TargetArmLength = 400.0f;       // The camera follows at this distance behind the character
-    CameraBoom->bUsePawnControlRotation = true; // Rotate the arm based on the controller
+    CameraBoom->bUsePawnControlRotation = false; // Rotate the arm based on the controller
 
     // Create a follow camera
     FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
@@ -43,6 +43,46 @@ void ABaseFlyPlane::BeginPlay()
     Super::BeginPlay();
 }
 
-void ABaseFlyPlane::PitchControl(float Value) {}
+void ABaseFlyPlane::Tick(float DeltaTime) 
+{
+    Super::Tick(DeltaTime);
 
-void ABaseFlyPlane::YawControl(float Value) {}
+    // Calculate Thrust
+    const float CurrentAcc = -GetActorRotation().Pitch * DeltaTime * Acceleration;
+    const float NewForwardSpeed = CurrentForwardSpeed + CurrentAcc;
+    CurrentForwardSpeed = FMath::Clamp(NewForwardSpeed, MinSpeed, MaxSpeed);
+
+    const FVector LocalMove = FVector(CurrentForwardSpeed * DeltaTime, 0.f, 0.f);
+    AddActorLocalOffset(LocalMove, true);
+
+    // Calculate delta rotation
+    FRotator DeltaRotation(0,0,0);
+    DeltaRotation.Pitch = CurrentPitchSpeed * DeltaTime;
+    DeltaRotation.Yaw = CurrentYawSpeed * DeltaTime;
+    DeltaRotation.Roll = CurrentRollSpeed * DeltaTime;
+
+    // Add rotation to actor rotation
+    AddActorLocalRotation(DeltaRotation);
+}
+
+void ABaseFlyPlane::PitchControl(float Value) 
+{
+    ProcessPitch(Value);
+}
+
+void ABaseFlyPlane::YawControl(float Value) 
+{
+    ProcessYaw(Value);
+}
+
+void ABaseFlyPlane::ProcessPitch(float Value) 
+{
+    const float TargetPitchSpeed = Value * PitchRateMultiplier;
+    CurrentPitchSpeed = FMath::FInterpTo(CurrentPitchSpeed, TargetPitchSpeed, GetWorld()->GetDeltaSeconds(), 2.f);
+}
+
+void ABaseFlyPlane::ProcessYaw(float Value) 
+{
+    const float TargetYawSpeed = Value * PitchRateMultiplier;
+    CurrentYawSpeed = FMath::FInterpTo(CurrentYawSpeed, TargetYawSpeed, GetWorld()->GetDeltaSeconds(), 2.f);
+}
